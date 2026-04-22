@@ -1553,7 +1553,7 @@ func setDefaults() {
 	viper.SetDefault("default.rate_multiplier", 1.0)
 
 	// RateLimit
-	viper.SetDefault("rate_limit.overload_cooldown_minutes", 10)
+	viper.SetDefault("rate_limit.overload_cooldown_minutes", 0)
 	viper.SetDefault("rate_limit.oauth_401_cooldown_minutes", 10)
 
 	// Pricing - 从 model-price-repo 同步模型定价和上下文窗口数据（固定到 commit，避免分支漂移）

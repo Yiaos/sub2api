@@ -797,6 +797,14 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 				"reason", "no rate limit reset time in headers, likely not a real rate limit")
 			return
 		}
+		if account.Platform == PlatformGemini {
+			resetAt := time.Now()
+			slog.Warn("rate_limit_no_reset_time_zero_cooldown", "account_id", account.ID, "platform", account.Platform)
+			if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
+				slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
+			}
+			return
+		}
 
 		// 其他平台：没有重置时间，使用默认5分钟
 		resetAt := time.Now().Add(5 * time.Minute)
@@ -811,6 +819,14 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	ts, err := strconv.ParseInt(resetTimestamp, 10, 64)
 	if err != nil {
 		slog.Warn("rate_limit_reset_parse_failed", "reset_timestamp", resetTimestamp, "error", err)
+		if account.Platform == PlatformGemini {
+			resetAt := time.Now()
+			slog.Warn("rate_limit_reset_parse_failed_zero_cooldown", "account_id", account.ID, "platform", account.Platform)
+			if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
+				slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
+			}
+			return
+		}
 		resetAt := time.Now().Add(5 * time.Minute)
 		if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
 			slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
@@ -1089,7 +1105,7 @@ func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
 
 	cooldownMinutes := settings.CooldownMinutes
 	if cooldownMinutes <= 0 {
-		cooldownMinutes = 10
+		return
 	}
 
 	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)

@@ -2761,28 +2761,14 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 
 	resetAt := ParseGeminiRateLimitResetTime(body)
 	if resetAt == nil {
-		// 根据账号类型使用不同的默认重置时间
-		var ra time.Time
-		if isCodeAssist {
-			// Code Assist: fallback cooldown by tier
-			cooldown := geminiCooldownForTier(tierID)
-			if s.rateLimitService != nil {
-				cooldown = s.rateLimitService.GeminiCooldown(ctx, account)
-			}
-			ra = time.Now().Add(cooldown)
-			logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d (Code Assist, tier=%s, project=%s) rate limited, cooldown=%v", account.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
-		} else {
-			// API Key / AI Studio OAuth: PST 午夜
-			if ts := nextGeminiDailyResetUnix(); ts != nil {
-				ra = time.Unix(*ts, 0)
-				logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d (API Key/AI Studio, type=%s) rate limited, reset at PST midnight (%v)", account.ID, account.Type, ra)
-			} else {
-				// 兜底：5 分钟
-				ra = time.Now().Add(5 * time.Minute)
-				logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d rate limited, fallback to 5min", account.ID)
-			}
-		}
+		// 无明确 reset 提示时，采用 0 冷却（立即可再次调度）。
+		ra := time.Now()
 		_ = s.accountRepo.SetRateLimited(ctx, account.ID, ra)
+		logger.LegacyPrintf(
+			"service.gemini_messages_compat",
+			"[Gemini 429] Account %d no reset hint, zero cooldown applied (oauth_type=%s, tier=%s, code_assist=%t, project=%s)",
+			account.ID, oauthType, tierID, isCodeAssist, projectID,
+		)
 		return
 	}
 
